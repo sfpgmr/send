@@ -60,6 +60,7 @@ async function send(ctx, path, opts = {}) {
   // normalize path
 
 
+  let stats
   async function checkPath(path) {
     // index file support
     if (index && trailingSlash) {
@@ -101,7 +102,6 @@ async function send(ctx, path, opts = {}) {
     }
 
     // stat
-    let stats
     try {
       stats = await fs.stat(path)
 
