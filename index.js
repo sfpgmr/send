@@ -34,7 +34,7 @@ module.exports = send
  * @api public
  */
 
-async function send (ctx, path, opts = {}) {
+async function send(ctx, path, opts = {}) {
   assert(ctx, 'koa context required')
   assert(path, 'pathname required')
 
@@ -58,71 +58,86 @@ async function send (ctx, path, opts = {}) {
   }
 
   // normalize path
-  path = decode(path)
 
-  if (path === -1) return ctx.throw(400, 'failed to decode')
 
-  // index file support
-  if (index && trailingSlash) path += index
+  async function checkPath(path) {
+    // index file support
+    if (index && trailingSlash) {
+      path += index
+    }
 
-  path = resolvePath(root, path)
+    path = resolvePath(root, path)
 
-  // hidden file support, ignore
-  if (!hidden && isHidden(root, path)) return
+    // hidden file support, ignore
+    if (!hidden && isHidden(root, path)) return null
 
-  let encodingExt = ''
-  // serve brotli file when possible otherwise gzipped file when possible
-  if (ctx.acceptsEncodings('br', 'identity') === 'br' && brotli && (await fs.exists(path + '.br'))) {
-    path = path + '.br'
-    ctx.set('Content-Encoding', 'br')
-    ctx.res.removeHeader('Content-Length')
-    encodingExt = '.br'
-  } else if (ctx.acceptsEncodings('gzip', 'identity') === 'gzip' && gzip && (await fs.exists(path + '.gz'))) {
-    path = path + '.gz'
-    ctx.set('Content-Encoding', 'gzip')
-    ctx.res.removeHeader('Content-Length')
-    encodingExt = '.gz'
-  }
+    let encodingExt = ''
+    // serve brotli file when possible otherwise gzipped file when possible
+    if (ctx.acceptsEncodings('br', 'identity') === 'br' && brotli && (await fs.exists(path + '.br'))) {
+      path = path + '.br'
+      ctx.set('Content-Encoding', 'br')
+      ctx.res.removeHeader('Content-Length')
+      encodingExt = '.br'
+    } else if (ctx.acceptsEncodings('gzip', 'identity') === 'gzip' && gzip && (await fs.exists(path + '.gz'))) {
+      path = path + '.gz'
+      ctx.set('Content-Encoding', 'gzip')
+      ctx.res.removeHeader('Content-Length')
+      encodingExt = '.gz'
+    }
 
-  if (extensions && !/\.[^/]*$/.exec(path)) {
-    const list = [].concat(extensions)
-    for (let i = 0; i < list.length; i++) {
-      let ext = list[i]
-      if (typeof ext !== 'string') {
-        throw new TypeError('option extensions must be array of strings or false')
-      }
-      if (!/^\./.exec(ext)) ext = '.' + ext
-      if (await fs.exists(path + ext)) {
-        path = path + ext
-        break
+    if (extensions && !/\.[^/]*$/.exec(path)) {
+      const list = [].concat(extensions)
+      for (let i = 0; i < list.length; i++) {
+        let ext = list[i]
+        if (typeof ext !== 'string') {
+          throw new TypeError('option extensions must be array of strings or false')
+        }
+        if (!/^\./.exec(ext)) ext = '.' + ext
+        if (await fs.exists(path + ext)) {
+          path = path + ext
+          break
+        }
       }
     }
+
+    // stat
+    let stats
+    try {
+      stats = await fs.stat(path)
+
+      // Format the path to serve static file servers
+      // and not require a trailing slash for directories,
+      // so that you can do both `/directory` and `/directory/`
+      if (stats.isDirectory()) {
+        if (format && index) {
+          path += '/' + index
+          stats = await fs.stat(path)
+        } else {
+          return path
+        }
+      }
+    } catch (err) {
+      const notfound = ['ENOENT', 'ENAMETOOLONG', 'ENOTDIR']
+      if (notfound.includes(err.code)) {
+        throw createError(404, err)
+      }
+      err.status = 500
+      throw err
+    }
+    return path
   }
 
-  // stat
-  let stats
   try {
-    stats = await fs.stat(path)
-
-    // Format the path to serve static file servers
-    // and not require a trailing slash for directories,
-    // so that you can do both `/directory` and `/directory/`
-    if (stats.isDirectory()) {
-      if (format && index) {
-        path += '/' + index
-        stats = await fs.stat(path)
-      } else {
-        return
-      }
-    }
-  } catch (err) {
-    const notfound = ['ENOENT', 'ENAMETOOLONG', 'ENOTDIR']
-    if (notfound.includes(err.code)) {
-      throw createError(404, err)
-    }
-    err.status = 500
-    throw err
+    path = await checkPath(path)
+    if(path == null) return;
+  } catch (e) {
+    path = decode(path)
+    if (path === -1) return ctx.throw(400, 'failed to decode')
+    path = await checkPath(path)
+    if(path == null) return;
   }
+
+
 
   if (setHeaders) setHeaders(ctx.res, path, stats)
 
@@ -146,7 +161,7 @@ async function send (ctx, path, opts = {}) {
  * Check if it's hidden.
  */
 
-function isHidden (root, path) {
+function isHidden(root, path) {
   path = path.substr(root.length).split(sep)
   for (let i = 0; i < path.length; i++) {
     if (path[i][0] === '.') return true
@@ -158,7 +173,7 @@ function isHidden (root, path) {
  * File type.
  */
 
-function type (file, ext) {
+function type(file, ext) {
   return ext !== '' ? extname(basename(file, ext)) : extname(file)
 }
 
@@ -166,7 +181,7 @@ function type (file, ext) {
  * Decode `path`.
  */
 
-function decode (path) {
+function decode(path) {
   try {
     return decodeURIComponent(path)
   } catch (err) {
