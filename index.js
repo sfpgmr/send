@@ -61,6 +61,8 @@ async function send(ctx, path, opts = {}) {
 
 
   let stats
+  let encodingExt = ''
+
   async function checkPath(path) {
     // index file support
     if (index && trailingSlash) {
@@ -72,7 +74,6 @@ async function send(ctx, path, opts = {}) {
     // hidden file support, ignore
     if (!hidden && isHidden(root, path)) return null
 
-    let encodingExt = ''
     // serve brotli file when possible otherwise gzipped file when possible
     if (ctx.acceptsEncodings('br', 'identity') === 'br' && brotli && (await fs.exists(path + '.br'))) {
       path = path + '.br'
