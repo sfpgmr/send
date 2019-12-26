@@ -155,7 +155,7 @@ async function send(ctx, path, opts = {}) {
   if (!ctx.type) ctx.type = type(path, encodingExt)
   if(ctx.method == 'HEAD'){
     ctx.body = '';
-    ctx.response.end();        
+    ctx.respond();        
   } else {
     ctx.body = fs.createReadStream(path)
   }
