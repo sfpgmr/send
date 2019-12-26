@@ -153,8 +153,11 @@ async function send(ctx, path, opts = {}) {
     ctx.set('Cache-Control', directives.join(','))
   }
   if (!ctx.type) ctx.type = type(path, encodingExt)
-  ctx.body = fs.createReadStream(path)
-
+  if(ctx.method == 'HEAD'){
+    ctx.body = '';        
+  } else {
+    ctx.body = fs.createReadStream(path)
+  }
   return path
 }
 
